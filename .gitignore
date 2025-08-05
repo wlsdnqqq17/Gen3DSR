@@ -9,3 +9,4 @@ venv_*/
 .out/
 out/
 external/checkpoints/
+external/mmcv/
