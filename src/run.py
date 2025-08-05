@@ -146,6 +146,24 @@ def reconstruct_object(run_opt, out_dir, obj_id, obj_elevation, reprojected=True
 
     return mesh
 
+def pixel_to_world(px: int, py: int,
+                   depth_map: np.ndarray,
+                   K: np.ndarray,
+                   c2w: np.ndarray) -> np.ndarray:
+    z = float(depth_map[py, px])
+    if z == 0:
+        raise ValueError(f"Depth at ({px}, {py}) is zero")
+    fx, fy = K[0, 0], K[1, 1]
+    cx, cy = K[0, 2], K[1, 2]
+    
+    x_cam = (px - cx) * z / fx
+    y_cam = (py - cy) * z / fy
+    cam_pt_h = np.array([x_cam, y_cam, z, 1.0])
+    print(c2w)
+    print(cam_pt_h)
+    world_pt = c2w @ cam_pt_h
+    return world_pt[:3]
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -162,7 +180,8 @@ if __name__ == "__main__":
     device = f"cuda:{args.gpu_idx}"
 
     scene = get_scene(opt.scene.type, opt.scene.attributes)
-
+    if scene.image_np.shape[2] == 4:
+        scene.image_np = scene.image_np[:, :, :3]
     out_dir = Path(opt.scene.save_dir)
     print(f"Saving to {out_dir}")
     out_dir.mkdir(exist_ok=True, parents=True)
@@ -172,11 +191,13 @@ if __name__ == "__main__":
 
     OmegaConf.save(config=opt, f=out_dir / "config.yaml")
     scene.image_pil.save(out_dir / 'input.png')
-
     K_img, pose = get_camera(scene, opt.run.calibration)
     depth_map = get_depth(scene, opt.run.depth, K_img, out_dir, device)
     masks, object_ids, background_ids, instance_labels = get_components_masks(scene, opt.run.segmentation, out_dir, device)
 
+    np.save(out_dir / "depth_map.npy", depth_map)  # depth
+    np.save(out_dir / "K.npy", K_img)              # intrinsics
+    np.save(out_dir / "c2w.npy", pose)             # pose (camera-to-world)
     pts3d = depth_to_points(depth_map[None], K_img)
     trimesh.PointCloud(pts3d.reshape(-1, 3), scene.image_np.reshape(-1, 3)).export(out_dir / 'depth_scene.ply')
     cam_params = {
@@ -246,6 +267,9 @@ if __name__ == "__main__":
         obj_mesh.apply_transform(pose)
         if opt.run.get('clip_bg', False):
             clip_object_with_bg(obj_mesh, background_mesh)
+        final_tf = pose @ transform
+        translation = final_tf[:3, 3]
+        print(f"[{obj_id}] world translation: {translation}")
         obj_mesh.export(out_dir / 'reconstruction' / f"{obj_id}.glb")
         scene_mesh.add_geometry([obj_mesh])
         print(f"Saved, {obj_id}.glb")

@@ -7,3 +7,5 @@ venv_*/
 .vscode/
 .idea/
 .out/
+out/
+external/checkpoints/

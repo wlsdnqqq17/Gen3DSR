@@ -1,4 +1,4 @@
-trimesh[all]==4.4.1
+trimesh==4.4.1
 open3d==0.18.0
 notebook==7.2.1
 pyngrok==7.1.6
@@ -38,6 +38,6 @@ accelerate==0.31.0
 transformers==4.42.3
 xatlas==0.0.9
 PyMCubes==0.1.4
-pymeshlab==2023.12.post1
+# pymeshlab==2023.12.post1
 rembg[gpu,cli]==2.0.57
 gradio==4.37.2
